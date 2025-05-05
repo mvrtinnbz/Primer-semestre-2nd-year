@@ -1,0 +1,55 @@
+--CASE: Evaluar distintos tipos de condiciones
+--Lo más similar a un IF ELSE
+
+--SINTAXIS
+--WHEN: CUANDO
+--THEN: ENTONCES
+SELECT
+	Nombre_columna
+	CASE
+		WHEN condición1 THEN resultado1,
+		WHEN condición2 THEN resultado2
+		ELSE condición_por_defecto
+	END AS nombre_de_la_columna_resultado
+	FROM 
+		nombre_tabla;
+
+-- EJEMPLO 1 clasificar los precios de los productos según su valor.
+
+	SELECT
+		p.Name AS Nombre_producto,
+		p.ListPrice AS Precio_producto,
+
+		CASE
+		WHEN p.ListPrice < 100 THEN 'Economico'
+		WHEN p.ListPrice BETWEEN 100 AND 300 THEN 'medio'
+		ELSE 'Premium'
+		END AS categoria_precio
+	FROM
+		Production.Product p;
+
+--EJEMPLO 2
+
+SELECT
+	e.BusinessEntityID AS ID_Trabajador, 
+	e.JobTitle AS Cargo_Actual,
+
+CASE
+	WHEN e.SalariedFlag = 1 THEN 'Contrato Indefinido'
+	ELSE 'Boleta de honorarios o por horas'
+END AS Tipo_vinculo_laboral
+FROM
+	HumanResources.Employee e;
+
+--EJEMPLO 3 Clasificar las ventas según su monto
+
+SELECT
+	soh.SalesOrderID, --Id unico de la venta
+	soh.TotalDue, --Monto Total de la venta
+CASE 
+	WHEN soh.TotalDue < 1000 THEN 'baja'
+	WHEN soh.TotalDue BETWEEN 1000 AND 5000 THEN 'media'
+	ELSE 'alta'--Venta de +5000
+END AS Categoria_ventas
+FROM 
+	Sales.SalesOrderHeader soh;
