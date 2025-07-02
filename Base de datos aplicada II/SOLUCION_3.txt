@@ -1,0 +1,95 @@
+-- Primero declaramos las variables de enlace en SQL*Plus o SQL Developer
+VARIABLE b_mes_proceso VARCHAR2(2)
+VARIABLE b_annio_proceso VARCHAR2(4)
+
+-- Asignamos valores a las variables para abril 2025
+BEGIN
+    :b_mes_proceso := '04';
+    :b_annio_proceso := '2025';
+END;
+/
+
+-- Ahora ejecutamos el bloque PL/SQL principal
+DECLARE
+    -- Cursor para obtener los vendedores con ventas en el mes especificado
+    CURSOR cursor_vendedores IS    
+    SELECT DISTINCT(v.rut_vendedor), v.ID_VENDEDOR, v.sueldo_base,
+           ROUND(MONTHS_BETWEEN(sysdate, v.FECNAC)/12) AS ANNIOSE,
+           v.id_afp, v.id_salud
+    FROM VENDEDOR V
+    INNER JOIN VENTA A ON (V.ID_VENDEDOR = A.ID_VENDEDOR)
+    WHERE TO_CHAR(A.FECHA_VENTA,'MM/YYYY') = :b_mes_proceso || '/' || :b_annio_proceso
+    ORDER BY v.ID_VENDEDOR;
+    
+    -- Variables para almacenar datos
+    v_porc_afp NUMBER;
+    v_porc_salud NUMBER;
+    v_cargas NUMBER;
+    v_asig_carga_fam NUMBER := 0;
+    v_descto_afp NUMBER;
+    v_descto_salud NUMBER;
+    v_total_descuentos NUMBER;
+    
+BEGIN
+    -- Truncar la tabla de resultados antes de comenzar
+    EXECUTE IMMEDIATE 'TRUNCATE TABLE DESCUENTO_MES_VENDEDOR';
+    
+    -- Procesar cada vendedor
+    FOR v_vendedor IN cursor_vendedores LOOP
+        -- Obtener porcentaje de descuento de AFP
+        SELECT porc_descto_afp INTO v_porc_afp
+        FROM afp
+        WHERE id_afp = v_vendedor.id_afp;
+        
+        -- Obtener porcentaje de descuento de Salud
+        SELECT porc_descto_salud INTO v_porc_salud
+        FROM salud
+        WHERE id_salud = v_vendedor.id_salud;
+        
+        -- Calcular descuentos de AFP y Salud
+        v_descto_afp := ROUND(v_vendedor.sueldo_base * v_porc_afp / 100);
+        v_descto_salud := ROUND(v_vendedor.sueldo_base * v_porc_salud / 100);
+        
+        -- Obtener número de cargas familiares (solo si el vendedor tiene más de 45 años)
+        IF v_vendedor.ANNIOSe > 45 THEN
+            SELECT COUNT(*) INTO v_cargas
+            FROM carga_familiar
+            WHERE id_vendedor = v_vendedor.ID_VENDEDOR;
+            
+            v_asig_carga_fam := v_cargas * 4250;
+        ELSE
+            v_asig_carga_fam := 0;
+        END IF;
+        
+        -- Calcular total de descuentos
+        v_total_descuentos := v_descto_afp + v_descto_salud;
+        
+        -- Insertar resultados en la tabla
+        INSERT INTO DESCUENTO_MES_VENDEDOR (
+            id_vendedor, 
+            numrut_vendedor, 
+            mes_proceso, 
+            anno_proceso,
+            asig_carga_fam,
+            valor_salud, 
+            valor_afp, 
+            total_descuentos
+        ) VALUES (
+            v_vendedor.ID_VENDEDOR,
+            SUBSTR(v_vendedor.rut_vendedor, 1, LENGTH(v_vendedor.rut_vendedor)-1),
+            :b_mes_proceso,
+            :b_annio_proceso,
+            v_asig_carga_fam,
+            v_descto_salud,
+            v_descto_afp,
+            v_total_descuentos
+        );
+        
+        -- Reiniciar asignación de carga familiar para el próximo vendedor
+        v_asig_carga_fam := 0;
+    END LOOP;
+    COMMIT;
+END;
+/
+
+select * from descuento_mes_vendedor;
